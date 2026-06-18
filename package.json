@@ -1,0 +1,47 @@
+{
+  "name": "aegis-guard",
+  "version": "0.1.0",
+  "description": "A pre-commit safety guard for AI coding agents. Blocks destructive shell commands before they run, with a tamper-evident audit log. Drop-in Claude Code hook.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "aegis": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai-agents",
+    "ai-safety",
+    "guardrails",
+    "claude-code",
+    "cursor",
+    "agent-security",
+    "pre-commit",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,20 @@
+version: 1
+defaultAction: allow
+useBuiltins: true
+
+rules:
+  - id: protect-prod-deploy
+    description: Require confirmation before deploying to production
+    any:
+      - "deploy --env prod"
+      - "deploy --env=production"
+    action: confirm
+    severity: high
+    message: "Deploying to production — confirm intent."
+
+  - id: block-prod-db-url
+    description: Never run ad-hoc commands against the production database
+    pattern: 'PGHOST=.*prod|DATABASE_URL=.*prod'
+    action: block
+    severity: critical
+    message: "Command references the production database directly."
