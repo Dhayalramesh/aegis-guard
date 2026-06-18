@@ -20,19 +20,30 @@ function nowIso(): string {
 }
 
 /** Run evaluation + record an audit entry. Centralised so every entry path is logged. */
-function assess(
-  command: string,
-  opts: { cwd: string; tool?: string; policyPath?: string; logFile?: string },
-): { result: EvalResult; source: string | null } {
-  const { policy, source } = loadPolicy({ cwd: opts.cwd, policyPath: opts.policyPath });
-  const result = evaluate({ command, cwd: opts.cwd, tool: opts.tool }, policy);
-  record(logPath(opts.cwd, opts.logFile), {
+function assess(input: {
+  command?: string;
+  path?: string;
+  content?: string;
+  tool?: string;
+  cwd: string;
+  policyPath?: string;
+  logFile?: string;
+}): { result: EvalResult; source: string | null } {
+  const { policy, source } = loadPolicy({ cwd: input.cwd, policyPath: input.policyPath });
+  const command = input.command ?? '';
+  const result = evaluate(
+    { command, path: input.path, content: input.content, cwd: input.cwd, tool: input.tool },
+    policy,
+  );
+  // Log a human-readable subject: the command for Bash, or "[Tool] path" for a file op.
+  const subject = command || `[${input.tool ?? 'Write'}] ${input.path ?? ''}`.trim();
+  record(logPath(input.cwd, input.logFile), {
     ts: nowIso(),
-    command,
+    command: subject,
     decision: result.decision,
     ruleIds: result.matched.map((m) => m.id),
-    tool: opts.tool,
-    cwd: opts.cwd,
+    tool: input.tool,
+    cwd: input.cwd,
   });
   return { result, source };
 }
@@ -107,7 +118,7 @@ program
       process.exit(2);
     }
 
-    const { result, source } = assess(command, { cwd: opts.cwd, policyPath: opts.policy, logFile: opts.log });
+    const { result, source } = assess({ command, cwd: opts.cwd, policyPath: opts.policy, logFile: opts.log });
     if (opts.json) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     } else {
@@ -116,38 +127,70 @@ program
     process.exit(exitCodeFor(result.decision));
   });
 
+/** File-editing tools whose target path and new contents Aegis screens. */
+const FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Update']);
+
+interface ToolInput {
+  command?: string;
+  file_path?: string;
+  notebook_path?: string;
+  content?: string;
+  new_string?: string;
+  new_source?: string;
+  edits?: Array<{ new_string?: string }>;
+}
+
+/** Pull the destination path and the bytes-to-be-written out of a file tool's input. */
+function extractFileOp(input: ToolInput): { path: string; content: string } {
+  const path = input.file_path ?? input.notebook_path ?? '';
+  const content =
+    input.content ??
+    input.new_string ??
+    input.new_source ??
+    (input.edits ?? []).map((e) => e.new_string ?? '').join('\n') ??
+    '';
+  return { path, content };
+}
+
 /**
  * Claude Code PreToolUse hook mode.
  *
- * Reads the hook JSON from stdin, extracts the Bash command, and emits a decision
- * via the documented `hookSpecificOutput` form (exit 0):
+ * Reads the hook JSON from stdin, extracts the relevant subject (a Bash command,
+ * or a file path + contents for Write/Edit tools), and emits a decision via the
+ * documented `hookSpecificOutput` form (exit 0):
  *   - block   -> permissionDecision "deny"  (Claude refuses to run it)
  *   - confirm -> permissionDecision "ask"   (Claude prompts the human)
  *   - allow   -> no output, defer to Claude's normal permission flow
  */
 async function runHookMode(opts: { cwd: string; policy?: string; log?: string }): Promise<void> {
   const payload = await readStdin();
-  let command = '';
   let tool = 'Bash';
+  let input: ToolInput = {};
   let cwd = opts.cwd;
   try {
-    const parsed = JSON.parse(payload) as {
-      tool_name?: string;
-      tool_input?: { command?: string };
-      cwd?: string;
-    };
+    const parsed = JSON.parse(payload) as { tool_name?: string; tool_input?: ToolInput; cwd?: string };
     tool = parsed.tool_name ?? 'Bash';
-    command = parsed.tool_input?.command ?? '';
+    input = parsed.tool_input ?? {};
     if (parsed.cwd) cwd = parsed.cwd;
   } catch {
     // Malformed payload: stay out of the way rather than break the agent.
     process.exit(0);
   }
 
-  // Only guard shell commands; defer everything else.
-  if (tool !== 'Bash' || !command.trim()) process.exit(0);
+  let assessInput: { command?: string; path?: string; content?: string };
+  if (tool === 'Bash') {
+    const command = (input.command ?? '').trim();
+    if (!command) process.exit(0);
+    assessInput = { command };
+  } else if (FILE_TOOLS.has(tool)) {
+    const { path, content } = extractFileOp(input);
+    if (!path) process.exit(0); // nothing to screen
+    assessInput = { path, content };
+  } else {
+    process.exit(0); // defer all other tools to Claude's normal flow
+  }
 
-  const { result } = assess(command, { cwd, tool, policyPath: opts.policy, logFile: opts.log });
+  const { result } = assess({ ...assessInput, cwd, tool, policyPath: opts.policy, logFile: opts.log });
 
   if (result.decision === 'allow') {
     process.exit(0); // defer to normal permission flow
@@ -179,7 +222,7 @@ program
       process.exit(2);
     }
 
-    const { result, source } = assess(command, { cwd: opts.cwd, policyPath: opts.policy, logFile: opts.log });
+    const { result, source } = assess({ command, cwd: opts.cwd, policyPath: opts.policy, logFile: opts.log });
     printHuman(result, source);
 
     if (result.decision === 'block') {

@@ -282,6 +282,94 @@ export const BUILTIN_RULES: Rule[] = [
     tags: ['release'],
   },
 
+  // ── File writes / edits (target: path) ────────────────────────────────────
+  // These inspect the *destination path* of a Write/Edit, not a shell command.
+  {
+    id: 'file.ssh-key',
+    description: 'Writing or editing an SSH private key',
+    target: 'path',
+    pattern: String.raw`(?:^|/)\.ssh/|(?:^|/)id_(?:rsa|dsa|ecdsa|ed25519)(?:$|[^/\w])`,
+    action: 'block',
+    severity: 'critical',
+    message: 'Modifying SSH keys or ~/.ssh can hijack credentials. Refusing by default.',
+    tags: ['filesystem', 'secrets'],
+  },
+  {
+    id: 'file.system-path',
+    description: 'Writing into an OS/system directory outside the project',
+    target: 'path',
+    pattern: String.raw`^/(?:etc|usr|bin|sbin|boot|lib|lib64|sys|proc|var/lib|System|Library)/`,
+    action: 'block',
+    severity: 'critical',
+    message: 'Writing into a system directory can break or backdoor the machine.',
+    tags: ['filesystem', 'destructive'],
+  },
+  {
+    id: 'file.dotenv',
+    description: 'Writing an environment/secrets file',
+    target: 'path',
+    // .env, .env.local, .env.production … but NOT .env.example/.sample/.template
+    pattern: String.raw`(?:^|/)\.env(?:\.(?!example|sample|template|dist)[\w.-]+)?$`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'Editing a .env file can overwrite live secrets. Confirm intent.',
+    tags: ['filesystem', 'secrets'],
+  },
+  {
+    id: 'file.ci-config',
+    description: 'Editing CI/CD pipeline configuration',
+    target: 'path',
+    pattern: String.raw`(?:^|/)\.github/workflows/|(?:^|/)\.gitlab-ci\.yml$|(?:^|/)\.circleci/|(?:^|/)Jenkinsfile$|(?:^|/)\.drone\.yml$`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'CI config runs with secrets and deploy access — a change here is a supply-chain risk.',
+    tags: ['filesystem', 'supply-chain'],
+  },
+  {
+    id: 'file.git-internal',
+    description: 'Writing into the .git directory (history or hooks)',
+    target: 'path',
+    pattern: String.raw`(?:^|/)\.git/`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'Writing into .git can rewrite history or install a hook that runs on every commit.',
+    tags: ['filesystem', 'git'],
+  },
+  {
+    id: 'file.shell-rc',
+    description: 'Editing a shell startup file (persistence vector)',
+    target: 'path',
+    pattern: String.raw`(?:^|/)\.(?:bashrc|bash_profile|zshrc|zprofile|profile|zshenv)$`,
+    action: 'confirm',
+    severity: 'medium',
+    message: 'Shell startup files run on every new shell — a common persistence vector.',
+    tags: ['filesystem', 'persistence'],
+  },
+
+  // ── File contents (target: content) ───────────────────────────────────────
+  // These inspect the *bytes being written*, catching secrets committed to disk.
+  {
+    id: 'content.private-key',
+    description: 'Writing a private key into a file',
+    target: 'content',
+    pattern: String.raw`-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'The content contains a private key. Confirm you mean to write a secret to disk.',
+    tags: ['secrets'],
+  },
+  {
+    id: 'content.cloud-credential',
+    description: 'Writing a cloud access key into a file',
+    target: 'content',
+    // AWS access key id, or a generic aws_secret_access_key assignment.
+    pattern: String.raw`\bAKIA[0-9A-Z]{16}\b|\baws_secret_access_key\b\s*[=:]`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'The content looks like a cloud credential. Confirm before writing it to disk.',
+    tags: ['secrets', 'cloud'],
+  },
+
   // ── System ────────────────────────────────────────────────────────────────
   {
     id: 'sys.eval-dynamic',

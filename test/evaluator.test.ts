@@ -113,6 +113,54 @@ describe('evasion resistance (obfuscated dangerous commands are not allowed)', (
   });
 });
 
+describe('file write/edit screening (Write/Edit tools)', () => {
+  const path = (p: string) => evaluate({ command: '', path: p }, policy).decision;
+  const content = (c: string) => evaluate({ command: '', path: 'notes.txt', content: c }, policy).decision;
+
+  it.each([
+    '/home/me/.ssh/id_rsa',
+    'subdir/id_ed25519',
+    '/etc/passwd',
+    '/usr/bin/whatever',
+  ])('blocks writes to sensitive path: %s', (p) => {
+    expect(path(p)).toBe('block');
+  });
+
+  it.each([
+    '.env',
+    'config/.env.production',
+    '.github/workflows/release.yml',
+    '.git/hooks/pre-commit',
+    '/home/me/.bashrc',
+  ])('confirms writes to risky path: %s', (p) => {
+    expect(path(p)).toBe('confirm');
+  });
+
+  it.each([
+    'src/index.ts',
+    'README.md',
+    '.env.example', // example/template env files are fine
+    'docs/.env.sample',
+    'test/fixtures/data.json',
+  ])('allows writes to ordinary path: %s', (p) => {
+    expect(path(p)).toBe('allow');
+  });
+
+  it('confirms writing secret material into a file', () => {
+    expect(content('-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n')).toBe('confirm');
+    expect(content('aws_secret_access_key = wJalrXUtnFEMI/K7MDENG')).toBe('confirm');
+  });
+
+  it('allows ordinary file contents', () => {
+    expect(content('export const x = 1;\n')).toBe('allow');
+  });
+
+  it('does not cross the streams: a Bash command never trips file-path rules', () => {
+    // ".env" appears in the command text, but there is no file op, so file rules stay silent.
+    expect(decide('cat .env')).toBe('allow');
+  });
+});
+
 describe('precedence and defaults', () => {
   it('block beats confirm when both match', () => {
     // `rm -rf /` trips both fs.rm-recursive-force (confirm) and fs.rm-rf-root (block)

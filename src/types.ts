@@ -3,16 +3,28 @@ export type Decision = 'allow' | 'confirm' | 'block';
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 
+/**
+ * What a rule's matcher is tested against:
+ *   - `command` (default) — a shell command (Bash tool).
+ *   - `path`              — the target file path of a write/edit (Write/Edit tools).
+ *   - `content`          — the bytes being written into a file.
+ * A rule only fires when the context actually carries that subject, so command
+ * rules never trip on file edits and vice versa.
+ */
+export type Target = 'command' | 'path' | 'content';
+
 /** A single policy rule. A rule matches via `pattern` (regex) or `any` (substrings). */
 export interface Rule {
   id: string;
   description: string;
-  /** Regex source, matched (case-insensitively by default) against the full command. */
+  /** Regex source, matched (case-insensitively by default) against the subject. */
   pattern?: string;
   /** Regex flags; defaults to 'i'. Ignored when `any` is used. */
   flags?: string;
   /** Convenience matcher: if any of these case-insensitive substrings appear, the rule fires. */
   any?: string[];
+  /** Which part of the action this rule inspects. Defaults to 'command'. */
+  target?: Target;
   /** What to do when this rule fires. */
   action: Decision;
   severity?: Severity;
@@ -31,7 +43,12 @@ export interface Policy {
 }
 
 export interface EvalContext {
+  /** The shell command, for Bash actions. Empty for file operations. */
   command: string;
+  /** Target file path, for Write/Edit actions. */
+  path?: string;
+  /** File contents being written, for Write/Edit actions. */
+  content?: string;
   cwd?: string;
   tool?: string;
 }

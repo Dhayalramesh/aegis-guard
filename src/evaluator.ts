@@ -55,22 +55,29 @@ export function evaluate(ctx: EvalContext, policy: Policy): EvalResult {
   const rules = compilePolicy(policy);
   const matched: MatchedRule[] = [];
 
-  // Match against the raw command and, separately, a quote/escape-stripped view
-  // so the same rules catch obfuscated commands (r''m, "rm", sh -c "...", etc.).
-  // A rule that fires only on the normalized view is capped at `confirm`: the
+  // For shell commands, also match against a quote/escape-stripped view so the
+  // same rules catch obfuscated commands (r''m, "rm", sh -c "...", etc.). A rule
+  // that fires only on the normalized view is capped at `confirm`: the
   // normalization pass can be imprecise on quoted string literals, so it surfaces
   // a suspected evasion for review instead of hard-blocking it outright.
+  // Normalization is shell-specific and is NOT applied to file paths/content.
   const normalized = normalizeCommand(ctx.command);
   const normalizedDiffers = normalized !== ctx.command;
 
   for (const rule of rules) {
+    const target = rule.target ?? 'command';
+    const subject = target === 'path' ? ctx.path : target === 'content' ? ctx.content : ctx.command;
+    // Skip a rule when this action doesn't carry its subject (e.g. a path rule
+    // against a Bash command, or a command rule against a file write).
+    if (!subject) continue;
+
     const action = rule.action;
     const severity = rule.severity ?? 'medium';
     const baseMessage = rule.message ?? rule.description;
 
-    if (rule.regex.test(ctx.command)) {
+    if (rule.regex.test(subject)) {
       matched.push({ id: rule.id, action, severity, message: baseMessage });
-    } else if (normalizedDiffers && rule.regex.test(normalized)) {
+    } else if (target === 'command' && normalizedDiffers && rule.regex.test(normalized)) {
       const capped: Decision = action === 'block' ? 'confirm' : action;
       matched.push({
         id: rule.id,

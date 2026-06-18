@@ -35,7 +35,7 @@ Aegis does three things:
    fabricate or rewrite history. `aegis log --verify` detects any edit, deletion,
    or reordering.
 3. **Drops into Claude Code as a hook** — one block of config and every Bash command
-   the agent proposes is screened.
+   *and file write/edit* the agent proposes is screened.
 
 It's a heuristic guard, not a sandbox — but it's the cheap, drop-in seatbelt that
 catches the failures that actually happen.
@@ -85,15 +85,16 @@ aegis log --verify                  # ✓ audit chain intact — 42 entries veri
 
 ## Claude Code integration (the main event)
 
-Add Aegis as a `PreToolUse` hook so it screens every `Bash` command Claude Code runs.
-In your `~/.claude/settings.json` (or a project `.claude/settings.json`):
+Add Aegis as a `PreToolUse` hook so it screens every `Bash` command **and every
+file write/edit** Claude Code performs. In your `~/.claude/settings.json` (or a
+project `.claude/settings.json`):
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -115,7 +116,12 @@ Behaviour:
 | **confirm** | `permissionDecision: "ask"` — Claude prompts *you* to approve. |
 | **allow** | Aegis emits nothing and defers to Claude's normal permission flow. |
 
-Every screened command is written to the audit log regardless of the decision.
+For **Bash** the screened subject is the command. For **Write/Edit/MultiEdit/
+NotebookEdit** it's the target file path *and* the bytes being written — so Aegis
+blocks writes into `~/.ssh` or system directories, asks before touching `.env`,
+CI config, `.git/`, or shell startup files, and flags a private key or cloud
+credential being written to disk. Every screened action is recorded in the audit
+log regardless of the decision.
 
 ---
 
@@ -140,11 +146,23 @@ rules:
     action: block
 ```
 
-- **`pattern`** — a regular expression matched against the full command.
+- **`pattern`** — a regular expression matched against the subject.
 - **`any`** — a list of case-insensitive substrings; any hit fires the rule.
+- **`target`** — what the rule inspects: `command` (default, the shell command),
+  `path` (a file write/edit's destination), or `content` (the bytes being written).
+  A rule only fires when the action carries that subject, so command rules never
+  trip on file edits and vice versa.
 - **`action`** — `allow`, `confirm`, or `block`.
 - Precedence is **block > confirm > allow**: the most restrictive matched rule wins,
   so the guard fails safe.
+
+```yaml
+  - id: protect-secrets-dir
+    description: Never write into the secrets directory
+    target: path
+    pattern: '(^|/)secrets/'
+    action: block
+```
 
 Run `aegis init` to drop a starter policy in your repo.
 
