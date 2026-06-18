@@ -223,6 +223,15 @@ export const BUILTIN_RULES: Rule[] = [
     tags: ['network', 'supply-chain'],
   },
   {
+    id: 'net.decode-pipe-shell',
+    description: 'Decoding (base64/xxd) piped straight into a shell or interpreter',
+    pattern: String.raw`\b(?:base64|xxd|base32|openssl\s+(?:base64|enc))\b[^\n]*\|\s*(?:sudo\s+)?(?:bash|sh|zsh|python\d?|perl|ruby|node)\b`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'Decoding data and piping it into a shell hides what is actually run. Confirm the source.',
+    tags: ['network', 'supply-chain', 'obfuscation'],
+  },
+  {
     id: 'net.env-exfil',
     description: 'Piping environment/secret files to the network',
     pattern: String.raw`\b(?:env|printenv|cat)\b[^\n]*(?:\.env|id_rsa|credentials|secrets?)?[^\n]*\|\s*(?:curl|wget|nc|ncat|telnet)\b`,

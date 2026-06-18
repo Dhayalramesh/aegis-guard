@@ -141,6 +141,27 @@ Run `aegis init` to drop a starter policy in your repo.
 
 ---
 
+## Evasion resistance
+
+A naive substring/regex guard is trivially dodged with shell quoting tricks the
+shell itself strips before running the command:
+
+```bash
+r''m -rf /          # quote splitting
+r\m -rf /           # backslash escaping
+sh -c "rm -rf /"    # nested-shell payload
+rm -rf \<newline> / # line continuation
+```
+
+Aegis matches every rule against **both** the raw command and a normalized,
+quote/escape-stripped view (the form the shell would assemble), so the disguised
+command trips the same rule as the plain one. A rule that fires *only* on the
+normalized view is capped at **confirm** rather than auto-blocked — the
+normalization is a heuristic, not a full shell parser (it doesn't resolve
+variables, globs, or command substitution), so a suspected evasion is surfaced
+for review instead of hard-failing on an innocent quoted string. It still won't
+silently **allow** the obfuscated form.
+
 ## How the tamper-evident log works
 
 Each entry stores `sha256(its fields + the previous entry's hash)`. Because every

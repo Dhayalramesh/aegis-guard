@@ -7,6 +7,7 @@ import type {
   Rule,
   Severity,
 } from './types.js';
+import { normalizeCommand } from './normalize.js';
 
 const DECISION_RANK: Record<Decision, number> = { allow: 0, confirm: 1, block: 2 };
 const SEVERITY_RANK: Record<Severity, number> = { low: 0, medium: 1, high: 2, critical: 3 };
@@ -54,13 +55,28 @@ export function evaluate(ctx: EvalContext, policy: Policy): EvalResult {
   const rules = compilePolicy(policy);
   const matched: MatchedRule[] = [];
 
+  // Match against the raw command and, separately, a quote/escape-stripped view
+  // so the same rules catch obfuscated commands (r''m, "rm", sh -c "...", etc.).
+  // A rule that fires only on the normalized view is capped at `confirm`: the
+  // normalization pass can be imprecise on quoted string literals, so it surfaces
+  // a suspected evasion for review instead of hard-blocking it outright.
+  const normalized = normalizeCommand(ctx.command);
+  const normalizedDiffers = normalized !== ctx.command;
+
   for (const rule of rules) {
+    const action = rule.action;
+    const severity = rule.severity ?? 'medium';
+    const baseMessage = rule.message ?? rule.description;
+
     if (rule.regex.test(ctx.command)) {
+      matched.push({ id: rule.id, action, severity, message: baseMessage });
+    } else if (normalizedDiffers && rule.regex.test(normalized)) {
+      const capped: Decision = action === 'block' ? 'confirm' : action;
       matched.push({
         id: rule.id,
-        action: rule.action,
-        severity: rule.severity ?? 'medium',
-        message: rule.message ?? rule.description,
+        action: capped,
+        severity,
+        message: `${baseMessage} (matched after de-obfuscating the command)`,
       });
     }
   }
