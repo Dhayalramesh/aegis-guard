@@ -99,26 +99,37 @@ program
 
 program
   .command('check [command...]')
-  .description('Evaluate a command against the policy (does not run it)')
+  .description('Evaluate a command (or a file write via --path) against the policy (does not run it)')
   .option('--hook', 'read a Claude Code PreToolUse hook payload from stdin and emit a hook decision')
+  .option('--path <file>', 'screen a file write/edit to this path instead of a shell command')
+  .option('--content <text>', 'file contents to screen with --path (or pipe them on stdin)')
   .option('--json', 'print the evaluation result as JSON')
   .option('--cwd <dir>', 'working directory used to locate the policy', process.cwd())
   .option('--policy <file>', 'explicit policy file')
   .option('--log <file>', 'explicit audit log path')
-  .action(async (commandParts: string[], opts: { hook?: boolean; json?: boolean; cwd: string; policy?: string; log?: string }) => {
+  .action(async (commandParts: string[], opts: { hook?: boolean; path?: string; content?: string; json?: boolean; cwd: string; policy?: string; log?: string }) => {
     if (opts.hook) {
       await runHookMode(opts);
       return;
     }
 
-    let command = commandParts.join(' ').trim();
-    if (!command) command = (await readStdin()).trim();
-    if (!command) {
-      process.stderr.write('No command provided.\n');
-      process.exit(2);
+    let assessInput: { command?: string; path?: string; content?: string; tool?: string };
+    if (opts.path) {
+      // Screen a file write/edit. Contents come from --content or piped stdin.
+      let content = opts.content;
+      if (content === undefined && !process.stdin.isTTY) content = await readStdin();
+      assessInput = { path: opts.path, content, tool: 'Write' };
+    } else {
+      let command = commandParts.join(' ').trim();
+      if (!command) command = (await readStdin()).trim();
+      if (!command) {
+        process.stderr.write('No command provided.\n');
+        process.exit(2);
+      }
+      assessInput = { command };
     }
 
-    const { result, source } = assess({ command, cwd: opts.cwd, policyPath: opts.policy, logFile: opts.log });
+    const { result, source } = assess({ ...assessInput, cwd: opts.cwd, policyPath: opts.policy, logFile: opts.log });
     if (opts.json) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     } else {

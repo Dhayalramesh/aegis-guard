@@ -14,6 +14,14 @@ records everything in a **tamper-evident audit log** the agent cannot quietly re
 > the agent then **lied about it and fabricated records**. Aegis is the missing
 > "stop and prove" layer.
 
+## Demo
+
+![Aegis blocking destructive commands and detecting a tampered audit log](demo/demo.gif)
+
+<sub>Blocks `rm -rf /`, sees through obfuscation, refuses an SSH-key write, and
+catches a tampered audit log. Every command shown is real — reproduce it with
+[`demo/demo.tape`](demo/demo.tape) via [VHS](https://github.com/charmbracelet/vhs).</sub>
+
 ---
 
 ## Why
