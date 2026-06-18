@@ -1,5 +1,7 @@
 # 🛡️ Aegis Guard
 
+[![CI](https://github.com/Dhayalramesh/aegis-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhayalramesh/aegis-guard/actions/workflows/ci.yml)
+
 **A pre-commit safety guard for AI coding agents.** Aegis sits between an AI agent
 (Claude Code, Cursor, Devin, or your own) and your shell. It inspects every command
 **before it runs**, blocks the catastrophic ones, asks about the risky ones, and
