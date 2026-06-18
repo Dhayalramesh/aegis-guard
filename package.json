@@ -14,7 +14,7 @@
     "url": "https://github.com/Dhayalramesh/aegis-guard/issues"
   },
   "bin": {
-    "aegis": "./dist/cli.js"
+    "aegis": "dist/cli.js"
   },
   "files": [
     "dist",
