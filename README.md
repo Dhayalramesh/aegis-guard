@@ -44,14 +44,18 @@ catches the failures that actually happen.
 ## Install
 
 ```bash
-# from source (during development)
-git clone <repo> && cd aegis
+# from npm (provides the `aegis` command globally)
+npm install -g aegis-agent-guard
+
+# …or from source (during development)
+git clone https://github.com/Dhayalramesh/aegis-guard && cd aegis-guard
 npm install
 npm run build
 npm link            # makes `aegis` available globally
 ```
 
-Requires Node.js ≥ 18.
+Requires Node.js ≥ 18. The published package is **`aegis-agent-guard`**; the CLI
+command it installs is **`aegis`**.
 
 ---
 

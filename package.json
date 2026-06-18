@@ -1,9 +1,18 @@
 {
-  "name": "aegis-guard",
+  "name": "aegis-agent-guard",
   "version": "0.1.0",
   "description": "A pre-commit safety guard for AI coding agents. Blocks destructive shell commands before they run, with a tamper-evident audit log. Drop-in Claude Code hook.",
   "license": "MIT",
   "type": "module",
+  "author": "Dhayalramesh",
+  "homepage": "https://github.com/Dhayalramesh/aegis-guard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dhayalramesh/aegis-guard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Dhayalramesh/aegis-guard/issues"
+  },
   "bin": {
     "aegis": "./dist/cli.js"
   },
