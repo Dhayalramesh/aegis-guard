@@ -27,7 +27,9 @@ Aegis does three things:
 
 1. **Blocks destructive commands before execution** — `rm -rf /`, `DROP TABLE`,
    `git push --force` to `main`, deleting backups/volumes, `DELETE FROM` without a
-   `WHERE`, piping secrets to the network, and more.
+   `WHERE`, piping secrets to the network, and more. It also catches *obfuscated*
+   and *indirect* forms — quote/escape splitting, `bash -c "$(curl …)"`,
+   `eval "$X"`, and recursive deletes of an unknown `$VAR` path.
 2. **Keeps a tamper-evident audit log** — a hash-chained record so an agent can't
    fabricate or rewrite history. `aegis log --verify` detects any edit, deletion,
    or reordering.

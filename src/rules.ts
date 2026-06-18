@@ -33,6 +33,17 @@ export const BUILTIN_RULES: Rule[] = [
     tags: ['filesystem'],
   },
   {
+    id: 'fs.rm-recursive-var',
+    description: 'Recursive delete whose target is an unresolved variable',
+    // `rm -r` (force optional) where the args contain a $variable — the real
+    // path is unknown at screen time, so it could expand to / or $HOME.
+    pattern: String.raw`\brm\b(?=[^\n]*\s-[a-zA-Z]*r)(?=[^\n]*\$)`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'Recursive delete of a variable path ($VAR) — its value is unknown and could be / or $HOME.',
+    tags: ['filesystem', 'indirection'],
+  },
+  {
     id: 'fs.disk-overwrite',
     description: 'Direct block-device overwrite (mkfs / dd / redirect to /dev/sdX)',
     pattern: String.raw`\bmkfs(\.\w+)?\b|\bdd\b[^\n]*\bof=/dev/|>\s*/dev/(?:sd|hd|nvme|disk|mmcblk)\w*`,
@@ -223,6 +234,16 @@ export const BUILTIN_RULES: Rule[] = [
     tags: ['network', 'supply-chain'],
   },
   {
+    id: 'net.fetch-exec-substitution',
+    description: 'Shell executing the output of a remote download via command substitution',
+    // bash -c "$(curl ...)" / sh -c `wget ...` — runs whatever the URL returns.
+    pattern: String.raw`\b(?:bash|sh|zsh|ksh|dash)\s+-c\b[^\n]*(?:\$\(|` + '`' + String.raw`)[^\n]*\b(?:curl|wget)\b`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'Executing the output of a remote download (bash -c "$(curl …)") runs unaudited code. Confirm the source.',
+    tags: ['network', 'supply-chain', 'obfuscation'],
+  },
+  {
     id: 'net.decode-pipe-shell',
     description: 'Decoding (base64/xxd) piped straight into a shell or interpreter',
     pattern: String.raw`\b(?:base64|xxd|base32|openssl\s+(?:base64|enc))\b[^\n]*\|\s*(?:sudo\s+)?(?:bash|sh|zsh|python\d?|perl|ruby|node)\b`,
@@ -262,6 +283,17 @@ export const BUILTIN_RULES: Rule[] = [
   },
 
   // ── System ────────────────────────────────────────────────────────────────
+  {
+    id: 'sys.eval-dynamic',
+    description: 'eval of dynamic content (variable or command substitution)',
+    // `eval "$X"`, `eval $(...)`, eval `...` — executes a string assembled at
+    // runtime, which Aegis cannot inspect ahead of time.
+    pattern: String.raw`\beval\b[^\n]*(?:\$|` + '`' + String.raw`)`,
+    action: 'confirm',
+    severity: 'high',
+    message: 'eval runs a string built at runtime ($var/$(...)) that cannot be screened in advance.',
+    tags: ['system', 'indirection', 'obfuscation'],
+  },
   {
     id: 'sys.power',
     description: 'Shutdown / reboot / halt',
